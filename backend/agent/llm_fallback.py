@@ -112,12 +112,15 @@ def invoke_with_fallback(
         return primary_llm.invoke(messages)
 
     except Exception as exc:
-        # Broad catch so we never miss the error due to an import alias
-        # or SDK version wrapping it in a different exception subclass.
-        if _is_insufficient_quota(exc):
-            # Use print() as well so it's visible regardless of log level.
+        # Detect if OpenAI is failing due to quota OR invalid key
+        error_msg = str(exc).lower()
+        is_quota = "insufficient_quota" in error_msg
+        is_auth = "invalid_api_key" in error_msg or "401" in error_msg
+
+        if is_quota or is_auth:
+            source = "quota exhausted" if is_quota else "invalid/missing API key"
             msg = (
-                "⚠️  [llm_fallback] OpenAI quota exhausted (429 insufficient_quota). "
+                f"⚠️  [llm_fallback] OpenAI {source}. "
                 "Switching to Groq llama-3.3-70b-versatile."
             )
             print(msg)
@@ -125,6 +128,6 @@ def invoke_with_fallback(
             fallback_llm = _build_groq_llm(temperature)
             return fallback_llm.invoke(messages)
 
-        # Any other error (auth failure, network error, etc.) — re-raise as-is.
-        logger.error("[llm_fallback] Non-quota error from OpenAI: %s", exc)
+        # Any other error (network error, etc.) — re-raise as-is.
+        logger.error("[llm_fallback] Non-recoverable error from OpenAI: %s", exc)
         raise

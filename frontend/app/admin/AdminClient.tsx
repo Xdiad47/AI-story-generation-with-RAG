@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Story } from "../types";
 import { format } from "date-fns";
-import { Check, X, RefreshCw, ChevronDown, ChevronUp, Link as LinkIcon } from "lucide-react";
+import { Check, X, RefreshCw, ChevronDown, ChevronUp, Link as LinkIcon, Search, Copy, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -12,8 +12,31 @@ export default function AdminClient({ initialStats, initialStories }: { initialS
   const [stats, setStats] = useState(initialStats);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
   const [message, setMessage] = useState<{text: string, type: 'success' | 'info'} | null>(null);
   const router = useRouter();
+
+  // Live search: fires 400ms after the user stops typing
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (!searchQuery.trim()) {
+        // Empty box → restore full list
+        fetchUpdatedData();
+        return;
+      }
+      setIsSearching(true);
+      try {
+        const res = await fetch(`http://127.0.0.1:8000/stories/search?q=${encodeURIComponent(searchQuery)}`);
+        if (res.ok) setStories(await res.json());
+      } catch (e) {
+        console.error("Search failed", e);
+      }
+      setIsSearching(false);
+    }, 400);
+
+    return () => clearTimeout(timer); // cleanup on every keystroke
+  }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchUpdatedData = async () => {
     try {
@@ -66,8 +89,69 @@ export default function AdminClient({ initialStats, initialStories }: { initialS
     } catch (e) {}
   };
 
+  const handleDelete = async (id: string, title: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
+    try {
+      await fetch(`http://127.0.0.1:8000/admin/stories/${id}`, { method: "DELETE" });
+      setMessage({ text: "🗑 Story deleted.", type: 'info' });
+      await fetchUpdatedData();
+      router.refresh();
+      setTimeout(() => setMessage(null), 3000);
+    } catch (e) {
+      alert("Failed to delete story");
+    }
+  };
+
   const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id);
+  };
+  
+  const handleSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!searchQuery.trim()) {
+      fetchUpdatedData();
+      return;
+    }
+    
+    setIsSearching(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/stories/search?q=${encodeURIComponent(searchQuery)}`);
+      if (res.ok) {
+        const results = await res.json();
+        setStories(results);
+      }
+    } catch (e) {
+      console.error("Search failed", e);
+    }
+    setIsSearching(false);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+    fetchUpdatedData();
+  };
+
+  const findSimilar = (title: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSearchQuery(title);
+    // We need to trigger handleSearch, but since searchQuery update is async, 
+    // we can pass the title directly to a modified search function or use a timeout.
+    // Better yet, just call the logic directly.
+    const searchDirect = async (query: string) => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`http://127.0.0.1:8000/stories/search?q=${encodeURIComponent(query)}`);
+        if (res.ok) {
+          const results = await res.json();
+          setStories(results);
+          setMessage({ text: `Showing stories similar to "${query}"`, type: 'info' });
+          setTimeout(() => setMessage(null), 3000);
+        }
+      } catch (e) {}
+      setIsSearching(false);
+    };
+    searchDirect(title);
   };
 
   return (
@@ -111,6 +195,29 @@ export default function AdminClient({ initialStats, initialStories }: { initialS
         </div>
       )}
 
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+        <h2 className="text-xl font-bold">Story Library</h2>
+        <form onSubmit={handleSearch} className="relative w-full md:w-96 group">
+          <input 
+            type="text" 
+            placeholder="Search by theme (e.g. 'brave animals')..." 
+            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:ring-2 focus:ring-terracotta focus:border-transparent outline-none transition-all"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <Search className="absolute left-3 top-2.5 w-5 h-5 text-zinc-400 group-focus-within:text-terracotta transition-colors" />
+          {searchQuery && (
+            <button 
+              type="button" 
+              onClick={clearSearch}
+              className="absolute right-3 top-2.5 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+            >
+              Clear
+            </button>
+          )}
+        </form>
+      </div>
+
       <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
         {stories.map(story => (
           <div key={story.run_id} className="border-b border-zinc-200 dark:border-zinc-800 last:border-0">
@@ -152,6 +259,14 @@ export default function AdminClient({ initialStats, initialStories }: { initialS
                 </div>
               )}
               
+              <button onClick={(e) => findSimilar(story.title || "", e)} className="p-2 text-zinc-400 hover:text-blue-500" title="Find Similar / Duplicates">
+                <Copy className="w-5 h-5" />
+              </button>
+
+              <button onClick={(e) => handleDelete(story.run_id, story.title || 'this story', e)} className="p-2 text-zinc-400 hover:text-red-500" title="Delete Story">
+                <Trash2 className="w-5 h-5" />
+              </button>
+
               <Link href={`/admin/story/${story.run_id}`} onClick={e => e.stopPropagation()} className="p-2 text-zinc-400 hover:text-terracotta" title="Full Review Page">
                 <LinkIcon className="w-5 h-5" />
               </Link>

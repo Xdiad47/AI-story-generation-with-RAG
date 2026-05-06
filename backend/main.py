@@ -2,6 +2,7 @@ import os
 import json
 import uuid
 from typing import Optional
+from difflib import SequenceMatcher
 from datetime import datetime, timezone
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -130,6 +131,72 @@ def get_public_stories():
     published = [s for s in stories if s.get("status") == "published"]
     return sorted(published, key=lambda x: x.get("created_at", ""), reverse=True)
 
+def _fuzzy_search(query: str, stories: list) -> list:
+    """
+    Word-level fuzzy fallback using difflib.SequenceMatcher.
+    Handles typos like 'btave' → 'brave', 'diamon' → 'diamond'.
+    A story is included if its average best-word-match score >= 0.70.
+    """
+    query_words = query.lower().split()
+    if not query_words:
+        return []
+
+    scored = []
+    for story in stories:
+        searchable = " ".join(filter(None, [
+            story.get("title", ""),
+            story.get("summary", ""),
+            story.get("moral", ""),
+            story.get("category", ""),
+            story.get("story_text", ""),
+        ])).lower()
+        story_words = searchable.split()
+        if not story_words:
+            continue
+
+        total = 0.0
+        for qw in query_words:
+            best = max(
+                (SequenceMatcher(None, qw, sw).ratio() for sw in story_words),
+                default=0.0
+            )
+            total += best
+
+        avg = total / len(query_words)
+        if avg >= 0.70:
+            scored.append((avg, story))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [s for _, s in scored]
+
+
+@app.get("/stories/search")
+def search_stories(q: str):
+    from db.vector_store import vector_store
+    results = vector_store.search_stories(q)
+
+    stories = get_db()
+    matched_stories = []
+    matched_ids = set()
+
+    for doc in results:
+        run_id = doc.metadata.get("run_id")
+        story = next((s for s in stories if s.get("run_id") == run_id), None)
+        if story:
+            matched_stories.append(story)
+            matched_ids.add(run_id)
+
+    # Fuzzy fallback — activates when semantic search finds nothing (e.g. typos)
+    if not matched_stories:
+        matched_stories = _fuzzy_search(q, stories)
+
+    return matched_stories
+
+@app.get("/admin/stories")
+def get_all_stories():
+    stories = get_db()
+    return sorted(stories, key=lambda x: x.get("created_at", ""), reverse=True)
+
 @app.get("/stories/{run_id}")
 def get_story(run_id: str):
     stories = get_db()
@@ -138,13 +205,27 @@ def get_story(run_id: str):
         raise HTTPException(status_code=404, detail="Story not found")
     return story
 
-@app.get("/admin/stories")
-def get_all_stories():
-    stories = get_db()
-    return sorted(stories, key=lambda x: x.get("created_at", ""), reverse=True)
-
 class FeedbackModel(BaseModel):
     feedback: str
+
+@app.delete("/admin/stories/{run_id}")
+def delete_story(run_id: str):
+    stories = get_db()
+    story = next((s for s in stories if s.get("run_id") == run_id), None)
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    stories = [s for s in stories if s.get("run_id") != run_id]
+    save_db(stories)
+
+    # Also remove from ChromaDB
+    from db.vector_store import vector_store
+    try:
+        vector_store.delete_story(run_id)
+    except Exception:
+        pass  # If it wasn't indexed, that's fine
+
+    return {"message": "Story deleted"}
 
 @app.post("/admin/approve/{run_id}")
 def approve_story(run_id: str):

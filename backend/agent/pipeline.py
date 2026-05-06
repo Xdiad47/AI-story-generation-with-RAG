@@ -40,6 +40,21 @@ def save_to_db(state: StoryState):
     with open(db_path, 'w') as f:
         json.dump(stories, f, indent=2)
         
+    # Index in ChromaDB
+    from db.vector_store import vector_store
+    vector_store.add_story(
+        story_id=story_dict["run_id"],
+        text=story_dict["story_text"],
+        metadata={
+            "run_id": story_dict["run_id"],
+            "title": story_dict.get("title", ""),
+            "category": story_dict.get("category", ""),
+            "moral": story_dict.get("moral", ""),
+            "age_range": story_dict.get("age_range", ""),
+            "created_at": story_dict["created_at"]
+        }
+    )
+        
     return {"status": story_dict["status"]}
 
 def set_failed(state: StoryState):

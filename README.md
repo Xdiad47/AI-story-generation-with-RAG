@@ -5,7 +5,9 @@ StoryNest is an AI-powered platform that automatically generates engaging childr
 ## Features
 
 - **Automated Story Generation**: Uses an advanced LLM pipeline (LangGraph + LangChain) to write kids stories dynamically.
+- **Semantic Search**: Powered by ChromaDB and local HuggingFace embeddings for finding stories by meaning.
 - **Admin Approval Workflow**: An admin dashboard allows reviewing, approving, or rejecting generated stories with feedback, triggering automated regeneration if needed.
+- **Duplicate Detection**: Semantic checks ensure the AI doesn't generate repetitive content.
 - **Background Task Scheduling**: Automatically schedules and runs story generation tasks.
 - **Modern UI**: A responsive, beautifully crafted Next.js frontend with dark mode support.
 - **Social Media Ready**: Generates tailored captions for Facebook and Instagram for every story.
@@ -14,7 +16,9 @@ StoryNest is an AI-powered platform that automatically generates engaging childr
 
 ### Backend
 - **Framework**: FastAPI
-- **AI & Automation**: LangGraph, LangChain, OpenAI
+- **AI & Automation**: LangGraph, LangChain, OpenAI / Groq (Fallback)
+- **Vector DB**: ChromaDB (Local-first RAG)
+- **Embeddings**: HuggingFace `all-MiniLM-L6-v2` (Local)
 - **Scheduling**: APScheduler
 - **Database**: Local JSON Storage (for POC)
 
@@ -40,28 +44,43 @@ Follow these instructions to run the project locally.
 
 ***
 
-### Terminal 1 — Frontend (Next.js)
+### Terminal 1 — Backend (FastAPI)
 ```bash
-cd /Volumes/D_Drive/WBS-AI/kids-story-poc/frontend
-npm run dev
-```
-🟢 Runs at: **http://localhost:3000**
-
-***
-
-### Terminal 2 — Backend (FastAPI)
-```bash
-cd /Volumes/D_Drive/WBS-AI/kids-story-poc/backend
+cd backend
+# Windows
+.\venv\Scripts\activate
+# macOS/Linux
 source venv/bin/activate
+
 python -m uvicorn main:app --reload --port 8000
 ```
 🟢 Runs at: **http://127.0.0.1:8000**
 
 ***
 
-### Terminal 3 — Trigger Story (when needed)
+### Terminal 2 — Frontend (Next.js)
 ```bash
-curl -X POST http://127.0.0.1:8000/admin/generate
+cd frontend
+npm run dev
+```
+🟢 Runs at: **http://localhost:3000**
+
+***
+
+### Optional: Index Existing Stories
+If you have stories in `stories.json` that are not yet in ChromaDB:
+```bash
+cd backend
+python scripts/index_existing.py
+```
+
+### Optional: Search Stories
+```bash
+# PowerShell
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/stories/search?q=fox" -Method Get
+
+# Bash/WSL
+curl "http://127.0.0.1:8000/stories/search?q=fox"
 ```
 
 ---
