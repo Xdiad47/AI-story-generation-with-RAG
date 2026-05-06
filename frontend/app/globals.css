@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #faf8f4;
+  --foreground: #1e1c18;
+}
+
+.dark {
+  --background: #1e1c18;
+  --foreground: #faf8f4;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  transition: background-color 0.3s, color 0.3s;
+}
