@@ -1,0 +1,4 @@
+Write a DALL-E image prompt for this children's story paragraph. Style: warm Pixar-style illustration, soft colors, child-safe, joyful.
+Paragraph: {paragraph}
+Category: {category}
+Respond with ONLY the image prompt, no other text.

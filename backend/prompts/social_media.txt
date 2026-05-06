@@ -1,0 +1,3 @@
+Write social media captions for a kids story.
+Title: {title}, Category: {category}, Summary: {summary}, Moral: {moral}
+Respond ONLY with JSON: {"facebook": "caption + 3 hashtags", "instagram": "caption + emojis + 5 hashtags"}
