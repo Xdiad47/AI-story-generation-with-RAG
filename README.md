@@ -33,7 +33,7 @@ Follow these instructions to run the project locally.
 ### Prerequisites
 - Python 3.10+
 - Node.js 18+
-- An OpenAI API Key configured in `backend/.env` (`OPENAI_API_KEY=your_key`)
+- API Keys configured in `backend/.env` (`OPENAI_API_KEY=your_key` and `GROQ_API_KEY=your_key`)
 - Dependencies installed in both frontend (`npm install`) and backend (`pip install -r requirements.txt`)
 
 > **Note**: Start Terminal 2 first, wait for `Application startup complete`, then start Terminal 1. 🚀
@@ -83,6 +83,7 @@ curl -X POST http://127.0.0.1:8000/admin/generate
 
 **Backend (`backend/.env`)**
 - `OPENAI_API_KEY`: Your OpenAI API key required to generate stories via LangChain.
+- `GROQ_API_KEY`: Your Groq API key used for accelerated inference.
 
 ## Acknowledgments
 Built as a Proof of Concept (POC) to demonstrate LLM agentic workflows and automated content generation.
