@@ -19,3 +19,10 @@ export interface Story {
   created_at: string;
   published_at?: string;
 }
+
+export interface SearchResult {
+  story: Story;
+  relevance_score: number;
+  relevance_reason: string;
+  match_type: "semantic" | "fuzzy";
+}

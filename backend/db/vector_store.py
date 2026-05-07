@@ -45,11 +45,12 @@ class VectorStore:
     def search_stories(self, query: str, n_results: int = 5, threshold: float = 0.2):
         """
         Performs semantic search with a relevance threshold.
+        Returns list of (doc, score) tuples.
         """
         results = self.vector_store.similarity_search_with_relevance_scores(query, k=n_results)
         
         # Filter results based on the threshold
-        filtered_results = [doc for doc, score in results if score >= threshold]
+        filtered_results = [(doc, score) for doc, score in results if score >= threshold]
         
         return filtered_results
 

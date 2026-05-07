@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Story } from "../types";
+import { Story, SearchResult } from "../types";
 import { format } from "date-fns";
-import { Check, X, RefreshCw, ChevronDown, ChevronUp, Link as LinkIcon, Search, Copy, Trash2 } from "lucide-react";
+import { Check, X, RefreshCw, ChevronDown, ChevronUp, Link as LinkIcon, Search, Copy, Trash2, Sparkles, Zap } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -14,6 +14,7 @@ export default function AdminClient({ initialStats, initialStories }: { initialS
   const [isGenerating, setIsGenerating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [relevanceMap, setRelevanceMap] = useState<Record<string, SearchResult>>({});
   const [message, setMessage] = useState<{text: string, type: 'success' | 'info'} | null>(null);
   const router = useRouter();
 
@@ -22,13 +23,20 @@ export default function AdminClient({ initialStats, initialStories }: { initialS
     const timer = setTimeout(async () => {
       if (!searchQuery.trim()) {
         // Empty box → restore full list
+        setRelevanceMap({});
         fetchUpdatedData();
         return;
       }
       setIsSearching(true);
       try {
         const res = await fetch(`http://127.0.0.1:8000/stories/search?q=${encodeURIComponent(searchQuery)}`);
-        if (res.ok) setStories(await res.json());
+        if (res.ok) {
+          const results: SearchResult[] = await res.json();
+          setStories(results.map(r => r.story));
+          const rMap: Record<string, SearchResult> = {};
+          results.forEach(r => { rMap[r.story.run_id] = r; });
+          setRelevanceMap(rMap);
+        }
       } catch (e) {
         console.error("Search failed", e);
       }
@@ -110,6 +118,7 @@ export default function AdminClient({ initialStats, initialStories }: { initialS
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!searchQuery.trim()) {
+      setRelevanceMap({});
       fetchUpdatedData();
       return;
     }
@@ -118,8 +127,11 @@ export default function AdminClient({ initialStats, initialStories }: { initialS
     try {
       const res = await fetch(`http://127.0.0.1:8000/stories/search?q=${encodeURIComponent(searchQuery)}`);
       if (res.ok) {
-        const results = await res.json();
-        setStories(results);
+        const results: SearchResult[] = await res.json();
+        setStories(results.map(r => r.story));
+        const rMap: Record<string, SearchResult> = {};
+        results.forEach(r => { rMap[r.story.run_id] = r; });
+        setRelevanceMap(rMap);
       }
     } catch (e) {
       console.error("Search failed", e);
@@ -129,6 +141,7 @@ export default function AdminClient({ initialStats, initialStories }: { initialS
 
   const clearSearch = () => {
     setSearchQuery("");
+    setRelevanceMap({});
     fetchUpdatedData();
   };
 
@@ -143,8 +156,11 @@ export default function AdminClient({ initialStats, initialStories }: { initialS
       try {
         const res = await fetch(`http://127.0.0.1:8000/stories/search?q=${encodeURIComponent(query)}`);
         if (res.ok) {
-          const results = await res.json();
-          setStories(results);
+          const results: SearchResult[] = await res.json();
+          setStories(results.map(r => r.story));
+          const rMap: Record<string, SearchResult> = {};
+          results.forEach(r => { rMap[r.story.run_id] = r; });
+          setRelevanceMap(rMap);
           setMessage({ text: `Showing stories similar to "${query}"`, type: 'info' });
           setTimeout(() => setMessage(null), 3000);
         }
@@ -239,13 +255,39 @@ export default function AdminClient({ initialStats, initialStories }: { initialS
                     {story.status.replace(/_/g, ' ')}
                   </span>
                 </div>
-                <div className="text-sm text-zinc-500 flex gap-4">
+                <div className="text-sm text-zinc-500 flex flex-wrap gap-x-4 gap-y-1">
                   <span>{story.category}</span>
                   <span>•</span>
                   <span>Ages {story.age_range}</span>
                   <span>•</span>
                   <span>{story.created_at ? format(new Date(story.created_at), 'MMM d, yyyy h:mm a') : ''}</span>
                 </div>
+                {relevanceMap[story.run_id] && (
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                      relevanceMap[story.run_id].match_type === 'semantic'
+                        ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300'
+                        : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                    }`}>
+                      {relevanceMap[story.run_id].match_type === 'semantic' 
+                        ? <Sparkles className="w-3 h-3" /> 
+                        : <Zap className="w-3 h-3" />}
+                      {relevanceMap[story.run_id].match_type === 'semantic' ? 'Semantic' : 'Fuzzy'}
+                    </span>
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${
+                      relevanceMap[story.run_id].relevance_score >= 0.7
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                        : relevanceMap[story.run_id].relevance_score >= 0.4
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                        : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
+                    }`}>
+                      {Math.round(relevanceMap[story.run_id].relevance_score * 100)}% match
+                    </span>
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400 italic">
+                      {relevanceMap[story.run_id].relevance_reason}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {story.status === 'pending_approval' && (

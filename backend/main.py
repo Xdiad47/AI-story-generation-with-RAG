@@ -136,6 +136,7 @@ def _fuzzy_search(query: str, stories: list) -> list:
     Word-level fuzzy fallback using difflib.SequenceMatcher.
     Handles typos like 'btave' → 'brave', 'diamon' → 'diamond'.
     A story is included if its average best-word-match score >= 0.70.
+    Returns list of (score, story) tuples.
     """
     query_words = query.lower().split()
     if not query_words:
@@ -167,7 +168,66 @@ def _fuzzy_search(query: str, stories: list) -> list:
             scored.append((avg, story))
 
     scored.sort(key=lambda x: x[0], reverse=True)
-    return [s for _, s in scored]
+    return scored
+
+
+def _build_relevance_reason(query: str, story: dict, score: float, match_type: str) -> str:
+    """
+    Builds a human-readable relevance reason explaining why a story
+    matched the search query.
+    """
+    query_lower = query.lower()
+    query_words = query_lower.split()
+
+    # Fields to check for keyword matches
+    fields = {
+        "title": story.get("title", ""),
+        "category": story.get("category", ""),
+        "moral": story.get("moral", ""),
+        "summary": story.get("summary", ""),
+        "story": story.get("story_text", ""),
+    }
+
+    matched_fields = []
+    matched_keywords = []
+
+    for field_name, field_value in fields.items():
+        field_lower = field_value.lower()
+        for word in query_words:
+            if len(word) >= 3 and word in field_lower:
+                if field_name not in matched_fields:
+                    matched_fields.append(field_name)
+                if word not in matched_keywords:
+                    matched_keywords.append(word)
+
+    # Build reason text
+    parts = []
+
+    if score >= 0.85:
+        parts.append("Highly relevant")
+    elif score >= 0.60:
+        parts.append("Strong thematic match")
+    elif score >= 0.40:
+        parts.append("Moderate thematic match")
+    else:
+        parts.append("Loosely related")
+
+    if match_type == "fuzzy":
+        parts[0] = "Fuzzy match (possible typo correction)"
+
+    if matched_keywords:
+        keyword_str = ", ".join(f'"{kw}"' for kw in matched_keywords[:4])
+        parts.append(f"keywords {keyword_str} found")
+
+    if matched_fields:
+        field_str = ", ".join(matched_fields[:3])
+        parts.append(f"in {field_str}")
+
+    if not matched_keywords and match_type == "semantic":
+        # Semantic match but no exact keywords — the meaning matched
+        parts.append("meaning closely matches your query even without exact keyword overlap")
+
+    return " — ".join(parts[:2]) + (f" ({parts[2]})" if len(parts) > 2 else "")
 
 
 @app.get("/stories/search")
@@ -176,21 +236,35 @@ def search_stories(q: str):
     results = vector_store.search_stories(q)
 
     stories = get_db()
-    matched_stories = []
+    matched_results = []
     matched_ids = set()
 
-    for doc in results:
+    for doc, score in results:
         run_id = doc.metadata.get("run_id")
         story = next((s for s in stories if s.get("run_id") == run_id), None)
         if story:
-            matched_stories.append(story)
+            reason = _build_relevance_reason(q, story, score, "semantic")
+            matched_results.append({
+                "story": story,
+                "relevance_score": round(score, 3),
+                "relevance_reason": reason,
+                "match_type": "semantic"
+            })
             matched_ids.add(run_id)
 
     # Fuzzy fallback — activates when semantic search finds nothing (e.g. typos)
-    if not matched_stories:
-        matched_stories = _fuzzy_search(q, stories)
+    if not matched_results:
+        fuzzy_results = _fuzzy_search(q, stories)
+        for score, story in fuzzy_results:
+            reason = _build_relevance_reason(q, story, score, "fuzzy")
+            matched_results.append({
+                "story": story,
+                "relevance_score": round(score, 3),
+                "relevance_reason": reason,
+                "match_type": "fuzzy"
+            })
 
-    return matched_stories
+    return matched_results
 
 @app.get("/admin/stories")
 def get_all_stories():
