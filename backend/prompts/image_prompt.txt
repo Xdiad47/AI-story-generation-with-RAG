@@ -1,4 +1,20 @@
-Write a DALL-E image prompt for this children's story paragraph. Style: warm Pixar-style illustration, soft colors, child-safe, joyful.
-Paragraph: {paragraph}
-Category: {category}
-Respond with ONLY the image prompt, no other text.
+Create a cinematic Pixar-style children’s book illustration inspired by high-end animated films. The scene should feel magical, cozy, emotional, and story-driven, with ultra-detailed environments, soft painterly textures, warm natural lighting, expressive characters, and vibrant yet gentle colors.
+
+Illustration requirements:
+
+* Main subject based on: {paragraph}
+* Theme/category: {category}
+* Style inspired by modern Pixar + Studio Ghibli environments
+* Child-safe, wholesome, comforting atmosphere
+* Soft cinematic sunlight, glowing rim light, volumetric lighting, ambient depth
+* Dreamy landscapes with mountains, rivers, forests, flowers, cozy villages, cherry blossoms, lakes, or magical nature elements when appropriate
+* Cute stylized characters with large expressive eyes, rounded shapes, subtle emotions, and friendly appearance
+* Rich environmental storytelling with small details that make the world feel alive
+* Composition should feel like a premium animated movie frame
+* Depth of field, atmospheric perspective, soft shadows, smooth gradients
+* Highly detailed digital painting with polished 3D-animation look
+* Clean composition, no text, no watermark, no distortion
+* Vertical framing optimized for storybook illustration
+
+Art direction:
+warm Pixar-style illustration, cinematic composition, whimsical fantasy realism, soft pastel palette, ultra-detailed, cozy mood, emotional storytelling, vibrant nature, magical realism, adorable character design, painterly lighting, serene atmosphere, high-quality animated movie aesthetic.

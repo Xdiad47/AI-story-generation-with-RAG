@@ -63,9 +63,6 @@ export default async function AdminStoryPage({ params }: { params: { id: string 
                   <div className="w-full aspect-video rounded-xl overflow-hidden shadow-lg border border-zinc-100 dark:border-zinc-800">
                     <img src={story.image_urls[index + 1]} alt={`Illustration for ${story.title}`} className="w-full h-full object-cover" />
                   </div>
-                  <p className="mt-4 text-sm italic text-zinc-500 max-w-2xl text-center">
-                    {story.image_prompts?.[index + 1] || "A beautiful illustration of the story."}
-                  </p>
                 </div>
               )}
             </div>
